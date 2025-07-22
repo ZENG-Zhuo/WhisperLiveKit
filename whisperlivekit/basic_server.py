@@ -17,8 +17,12 @@ transcription_engine = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global transcription_engine
+    # Disable diarization for server deployment
+    server_args = vars(args).copy()
+    server_args['diarization'] = False
+    
     transcription_engine = TranscriptionEngine(
-        **vars(args),
+        **server_args,
     )
     yield
 
@@ -41,6 +45,21 @@ async def handle_websocket_results(websocket, results_generator):
     try:
         async for response in results_generator:
             await websocket.send_json(response)
+            
+            # Log current transcription results
+            if response.get("status") == "processing":
+                # Log buffer transcription (ongoing)
+                buffer_text = response.get("buffer_transcription", "").strip()
+                if buffer_text:
+                    logger.info(f"[BUFFER] {buffer_text}")
+                
+                # Log completed lines
+                lines = response.get("lines", [])
+                for line in lines:
+                    text = line.get('text', '').strip()
+                    if text:
+                        logger.info(f"[TRANSCRIPTION] {text}")
+                        
         # when the results_generator finishes it means all audio has been processed
         logger.info("Results generator finished. Sending 'ready_to_stop' to client.")
         await websocket.send_json({"type": "ready_to_stop"})
@@ -52,18 +71,25 @@ async def handle_websocket_results(websocket, results_generator):
 
 @app.websocket("/asr")
 async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time audio transcription.
+    
+    Expects PCM audio data in s16le format (16-bit signed little-endian).
+    Audio should be mono channel at 16kHz sample rate.
+    """
     global transcription_engine
     audio_processor = AudioProcessor(
         transcription_engine=transcription_engine,
     )
     await websocket.accept()
-    logger.info("WebSocket connection opened.")
+    logger.info("WebSocket connection opened. Expecting PCM s16le audio data.")
             
     results_generator = await audio_processor.create_tasks()
     websocket_task = asyncio.create_task(handle_websocket_results(websocket, results_generator))
 
     try:
         while True:
+            # Receive PCM audio data directly (s16le format expected)
             message = await websocket.receive_bytes()
             await audio_processor.process_audio(message)
     except KeyError as e:
