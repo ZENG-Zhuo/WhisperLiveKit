@@ -1,5 +1,5 @@
 <h1 align="center">WhisperLiveKit</h1>
-<h1 align="center">This Repo is an mirror with slight modification from repo: https://github.com/QuentinFuxa/WhisperLiveKit</h1>
+<h1 align="center">This Repo is a mirror with slight modification from repo: https://github.com/QuentinFuxa/WhisperLiveKit</h1>
 <p align="center">
 <img src="https://raw.githubusercontent.com/QuentinFuxa/WhisperLiveKit/refs/heads/main/demo.png" alt="WhisperLiveKit Demo" width="730">
 </p>
